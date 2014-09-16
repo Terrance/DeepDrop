@@ -1,3 +1,5 @@
+#include "header.h"
+
 #include <math.h>
 #include <stdio.h>
 
@@ -11,6 +13,10 @@
 #define GRD_WIDTH 15
 #define GRD_HEIGHT 15
 #define GRD_SPAWN 6
+#define SQR_WIDTH (SCR_WIDTH / GRD_WIDTH)
+#define SQR_HEIGHT (SCR_HEIGHT / GRD_HEIGHT)
+#define PLR_WIDTH (SQR_WIDTH / 3)
+#define PLR_HEIGHT (SQR_HEIGHT / 2)
 
 #define BLK_EMPTY 0
 #define BLK_WALL 1
@@ -67,14 +73,18 @@ int main() {
     for (int y = GRD_SPAWN + 1; y < GRD_HEIGHT + 1; y++) {
         genLine(grid[y], y < GRD_SPAWN + 4);
     }
+    // add player
+    Player player;
+    player.x = SQR_WIDTH * 3;
+    player.y = SQR_HEIGHT * 6;
     /*
     +-----------------+
     |#################| # wall
+    |#               #| P player
     |#               #| ? random
     |#               #|
     |#               #|
-    |#               #|
-    |#               #|
+    |#  P            #|
     |#######   #######|
     |#??????   ??????#|
     |#??????   ??????#|
@@ -83,6 +93,7 @@ int main() {
     |       ...       |
     +-----------------+
     */
+    int lastTime = 0;
     int lastOffset = 0;
     while (window.isOpen()) {
         sf::Event event;
@@ -95,11 +106,41 @@ int main() {
                     break;
             }
         }
-        window.clear(CLR_BACKGROUND);
-        int blockWidth = SCR_WIDTH / GRD_WIDTH;
-        int blockHeight = SCR_HEIGHT / GRD_HEIGHT;
-        int offset = MOD(static_cast<int>(round((clock.getElapsedTime().asSeconds() / 1.5) * blockHeight)), blockHeight);
-        // reached end of grid, need a new bottom row
+        // quit on Ctrl-C
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LControl) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::C)) {
+            window.close();
+            break;
+        }
+        // do movement based on arrow keys
+        int diff = clock.getElapsedTime().asMilliseconds() - lastTime;
+        lastTime += diff;
+        bool mvLeft = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left);
+        bool mvRight = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right);
+        if (mvLeft && !mvRight) {
+            player.x -= (diff / 5);
+            // reset to right edge of wall
+            int x = player.x + 1;
+            int y1 = player.y - 1;
+            int y2 = y1 - PLR_HEIGHT;
+            int cell1 = grid[y1 / SQR_HEIGHT][x / SQR_WIDTH];
+            int cell2 = grid[y2 / SQR_HEIGHT][x / SQR_WIDTH];
+            if (cell1 == BLK_WALL || cell1 == BLK_GLASS || cell1 == BLK_GLASSPOWER || cell2 == BLK_WALL || cell2 == BLK_GLASS || cell2 == BLK_GLASSPOWER) {
+                player.x = ((x / SQR_WIDTH) + 1) * SQR_WIDTH;
+            }
+        } else if (mvRight && !mvLeft) {
+            player.x += (diff / 5);
+            // reset to left edge of wall
+            int x = player.x + PLR_WIDTH + 1;
+            int y1 = player.y - 1;
+            int y2 = y1 - PLR_HEIGHT;
+            int cell1 = grid[y1 / SQR_HEIGHT][x / SQR_WIDTH];
+            int cell2 = grid[y2 / SQR_HEIGHT][x / SQR_WIDTH];
+            if (cell1 == BLK_WALL || cell1 == BLK_GLASS || cell1 == BLK_GLASSPOWER || cell2 == BLK_WALL || cell2 == BLK_GLASS || cell2 == BLK_GLASSPOWER) {
+                player.x = ((x / SQR_WIDTH) * SQR_WIDTH) - PLR_WIDTH;
+            }
+        }
+        // generate a new bottom row if scrolled to that point
+        int offset = MOD(static_cast<int>(round((clock.getElapsedTime().asSeconds() / 1.5) * SQR_HEIGHT)), SQR_HEIGHT);
         if (offset < lastOffset) {
             // shift all rows up (discard top row)
             for (int y = 0; y < GRD_HEIGHT; y++) {
@@ -107,15 +148,17 @@ int main() {
                     grid[y][x] = grid[y + 1][x];
                 }
             }
+            player.y -= SQR_HEIGHT;
             genLine(grid[GRD_HEIGHT], false);
         }
         // draw grid
+        window.clear(CLR_BACKGROUND);
         for (int y = 0; y < GRD_HEIGHT + 1; y++) {
             for (int x = 0; x < GRD_WIDTH; x++) {
                 // no need to draw empty cell
                 if (grid[y][x] == BLK_EMPTY) continue;
-                int width = blockWidth;
-                int height = blockHeight;
+                int width = SQR_WIDTH;
+                int height = SQR_HEIGHT;
                 int left = x * width;
                 int top = (y * height) - offset;
                 sf::Color colour = blkColours[grid[y][x]];
@@ -123,8 +166,8 @@ int main() {
                 if (grid[y][x] == BLK_POWERUP) {
                     width /= 3;
                     height /= 3;
-                    left += blockWidth / 3;
-                    top += blockHeight / 3;
+                    left += SQR_WIDTH / 3;
+                    top += SQR_HEIGHT / 3;
                     // blink a lighter colour
                     if (MOD(clock.getElapsedTime().asMilliseconds() / 250, 2) == 1) colour = colour + sf::Color(32, 32, 32);
                 }
@@ -134,6 +177,10 @@ int main() {
                 window.draw(rect);
             }
         }
+        sf::RectangleShape playerRect(sf::Vector2f(PLR_WIDTH, PLR_HEIGHT));
+        playerRect.setPosition(player.x, player.y - PLR_HEIGHT - offset);
+        playerRect.setFillColor(sf::Color(64, 32, 0));
+        window.draw(playerRect);
         lastOffset = offset;
         window.display();
     }
