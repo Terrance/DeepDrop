@@ -32,6 +32,9 @@
 
 #define CLR_BACKGROUND sf::Color(128, 192, 255)
 
+#define CELL(a, b) (grid[a / SQR_HEIGHT][b / SQR_WIDTH])
+#define SOLID(a, b) (CELL(a, b) == BLK_WALL || CELL(a, b) == BLK_GLASS || CELL(a, b) == BLK_GLASSPOWER)
+
 const sf::Color blkColours[] = {
     CLR_BACKGROUND,          // empty (not explicitly drawn)
     sf::Color::Black,        // wall
@@ -119,7 +122,8 @@ int main() {
         bool mvLeft = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left);
         bool mvRight = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right);
         bool mvUp = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up);
-        int x, x1, x2, y, y1, y2, cell1, cell2, cell3, cell4;
+        int x1, x2, y1, y2;
+        bool hitCeiling = false;
         // initial upward velocity on jump start
         if (mvUp && !player.air && player.vel == 0) {
             player.vel = -14;
@@ -128,10 +132,9 @@ int main() {
         // fall if no floor underneath
         x1 = player.x + 1;
         x2 = x1 + PLR_WIDTH - 2;
-        y = player.y - 1;
-        cell1 = grid[y / SQR_HEIGHT][x1 / SQR_WIDTH]; // bottom-left
-        cell2 = grid[y / SQR_HEIGHT][x2 / SQR_WIDTH]; // bottom-right
-        if (cell1 != BLK_WALL && cell1 != BLK_GLASS && cell1 != BLK_GLASSPOWER && cell2 != BLK_WALL && cell2 != BLK_GLASS && cell2 != BLK_GLASSPOWER) {
+        y1 = player.y - 1;
+        // bottom corners
+        if (!SOLID(y1, x1) && !SOLID(y1, x2)) {
             player.vel += (diff / 10);
             player.air = true;
         }
@@ -142,41 +145,38 @@ int main() {
             x2 = x1 + PLR_WIDTH - 2;
             y1 = player.y - 1;
             y2 = y1 - PLR_HEIGHT;
-            cell1 = grid[y1 / SQR_HEIGHT][x1 / SQR_WIDTH]; // bottom-left
-            cell2 = grid[y1 / SQR_HEIGHT][x2 / SQR_WIDTH]; // bottom-right
-            cell3 = grid[y2 / SQR_HEIGHT][x1 / SQR_WIDTH]; // top-left
-            cell4 = grid[y2 / SQR_HEIGHT][x2 / SQR_WIDTH]; // top-right
-            if (cell1 == BLK_WALL || cell1 == BLK_GLASS || cell1 == BLK_GLASSPOWER || cell2 == BLK_WALL || cell2 == BLK_GLASS || cell2 == BLK_GLASSPOWER) {
+            // bottom corners
+            if (SOLID(y1, x1) || SOLID(y1, x2)) {
                 player.y = ((y1 / SQR_HEIGHT) * SQR_HEIGHT);
                 player.vel = 0;
                 player.air = false;
-            } else if (cell3 == BLK_WALL || cell3 == BLK_GLASS || cell3 == BLK_GLASSPOWER || cell4 == BLK_WALL || cell4 == BLK_GLASS || cell4 == BLK_GLASSPOWER) {
+            // top corners
+            } else if (SOLID(y2, x1) || SOLID(y2, x2)) {
                 player.y = (((y2 / SQR_HEIGHT) + 1) * SQR_HEIGHT) + PLR_HEIGHT;
                 player.vel = 0;
+                hitCeiling = true;
             }
         }
         // moving sideways
         if (mvLeft && !mvRight) {
             player.x -= (diff / 5);
             // reset to right edge of wall
-            x = player.x + 1;
+            x1 = player.x + 1;
             y1 = player.y - 1;
             y2 = y1 - PLR_HEIGHT;
-            cell1 = grid[y1 / SQR_HEIGHT][x / SQR_WIDTH]; // bottom-left
-            cell2 = grid[y2 / SQR_HEIGHT][x / SQR_WIDTH]; // top-left
-            if (cell1 == BLK_WALL || cell1 == BLK_GLASS || cell1 == BLK_GLASSPOWER || cell2 == BLK_WALL || cell2 == BLK_GLASS || cell2 == BLK_GLASSPOWER) {
-                player.x = ((x / SQR_WIDTH) + 1) * SQR_WIDTH;
+            // left corners
+            if (!hitCeiling && (SOLID(y1, x1) || SOLID(y2, x1))) {
+                player.x = ((x1 / SQR_WIDTH) + 1) * SQR_WIDTH;
             }
         } else if (mvRight && !mvLeft) {
             player.x += (diff / 5);
             // reset to left edge of wall
-            x = player.x + PLR_WIDTH - 1;
+            x1 = player.x + PLR_WIDTH - 1;
             y1 = player.y - 1;
             y2 = y1 - PLR_HEIGHT;
-            cell1 = grid[y1 / SQR_HEIGHT][x / SQR_WIDTH]; // bottom-right
-            cell2 = grid[y2 / SQR_HEIGHT][x / SQR_WIDTH]; // top-right
-            if (cell1 == BLK_WALL || cell1 == BLK_GLASS || cell1 == BLK_GLASSPOWER || cell2 == BLK_WALL || cell2 == BLK_GLASS || cell2 == BLK_GLASSPOWER) {
-                player.x = ((x / SQR_WIDTH) * SQR_WIDTH) - PLR_WIDTH;
+            // right corners
+            if (!hitCeiling && (SOLID(y1, x1) || SOLID(y2, x1))) {
+                player.x = ((x1 / SQR_WIDTH) * SQR_WIDTH) - PLR_WIDTH;
             }
         }
         // generate a new bottom row if scrolled to that point

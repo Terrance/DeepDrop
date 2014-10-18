@@ -1,6 +1,6 @@
 struct Player {
-    int x;
-    int y;
-    int vel;
+    double x;
+    double y;
+    double vel;
     bool air;
 };
